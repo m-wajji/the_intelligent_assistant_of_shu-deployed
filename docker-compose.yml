@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    networks:
+      - shu_agent_network
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app/shu_partitioned_db/chroma_dbs:/app/shu_partitioned_db/chroma_dbs
+      - ./backend/app/shu_partitioned_db/pdfs:/app/shu_partitioned_db/pdfs
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://backend:8000
+    env_file:
+      - ./frontend/.env.local
+    networks:
+      - shu_agent_network
+    environment:
+      - BACKEND_URL=http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+networks:
+  shu_agent_network:
+    driver: bridge

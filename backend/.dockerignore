@@ -1,0 +1,13 @@
+venv/
+.env
+.qodo/
+__pycache__/
+*.pyc
+*.pyo
+.git
+.gitignore
+*.exe
+test.py
+Dockerfile
+.dockerignore
+shu_partitioned_db/chroma_dbs

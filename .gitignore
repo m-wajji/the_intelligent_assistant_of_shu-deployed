@@ -1,0 +1,8 @@
+.qodo
+.env
+ffmpeg.exe
+ffprobe.exe
+venv
+__pycache__
+.next
+/backend/app/shu_partitioned_db/chroma_dbs/

@@ -1,0 +1,127 @@
+name: ShuAgent-CI/CD
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  terraform:
+    name: Create Cloud Infrastructure
+    runs-on: ubuntu-latest
+    outputs:
+      manager_ip: ${{ steps.extract_ip.outputs.manager_ip }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Setup Terraform CLI
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.1
+
+      - name: Terraform Init
+        run: terraform -chdir=terraform init -input=false
+
+      - name: Terraform Apply
+        run: terraform -chdir=terraform apply -auto-approve
+
+      - name: Extract manager IP
+        id: extract_ip
+        run: |
+          echo "manager_ip=$(terraform -chdir=terraform output -raw manager_ip)" \
+            >> $GITHUB_OUTPUT
+
+  build_and_push:
+    name: Build & Push Images
+    needs: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/shu-agent-backend:latest
+          build-args: |
+              OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+              GOOGLE_SERVICE_ACCOUNT_B64=${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}
+
+      - name: Build & push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/shu-agent-frontend:latest
+
+  deploy_stack:
+    name: Deploy Stack
+    needs: [build_and_push, terraform]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Add manager to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H $MANAGER_IP >> ~/.ssh/known_hosts
+        env:
+          MANAGER_IP: ${{ needs.terraform.outputs.manager_ip }}
+
+      - name: Generate dynamic Ansible inventory
+        run: |
+          mkdir -p ansible
+          cat > ansible/inventory.ini <<EOF
+          [swarm]
+          ${{ needs.terraform.outputs.manager_ip }} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+          EOF
+
+      - name: Install Ansible & plugin
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ansible
+          ansible-galaxy collection install community.general
+
+      - name: Deploy via Ansible
+        env:
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_REPO: ${{ github.event.repository.name }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}
+        run: |
+          ansible-playbook \
+            -i ansible/inventory.ini \
+            ansible/playbook.yml \
+            --limit swarm

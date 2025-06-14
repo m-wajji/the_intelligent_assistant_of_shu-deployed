@@ -1,0 +1,7 @@
+.qodo
+docs
+docs*/*
+uploads/
+yolo/*
+uploads/*
+shu_partitioned_db/chroma_dbs

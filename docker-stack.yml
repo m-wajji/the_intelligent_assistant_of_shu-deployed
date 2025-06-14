@@ -1,0 +1,36 @@
+services:
+  backend:
+    image: ghcr.io/m-wajji/the_intelligent_assistant_of_shu-deployed/shu-agent-backend:latest
+    environment:
+      - FRONTEND_URL=${FRONTEND_URL:-http://54.175.109.150}
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persistent volumes for data
+      - chroma_data:/app/shu_partitioned_db/chroma_dbs
+      - pdfs_data:/app/shu_partitioned_db/pdfs
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 5s
+  frontend:
+    image: ghcr.io/m-wajji/the_intelligent_assistant_of_shu-deployed/shu-agent-frontend:latest
+    environment:
+      # - BACKEND_URL=http://backend:8000
+      - NEXT_PUBLIC_API_URL=http://54.175.109.150:8000
+    ports:
+      - "80:3000"
+    depends_on:
+      - backend
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 5s
+
+volumes:
+  chroma_data:
+    driver: local
+  pdfs_data:
+    driver: local

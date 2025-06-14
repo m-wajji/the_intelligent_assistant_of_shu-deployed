@@ -1,0 +1,180 @@
+- hosts: swarm
+  become: true
+  become_method: sudo
+  become_user: root
+
+  vars:
+    ghcr_user: "{{ lookup('env','GHCR_USER') }}"
+    ghcr_token: "{{ lookup('env','GHCR_TOKEN') }}"
+
+  tasks:
+    - name: Ensure .ssh directory for ubuntu
+      file:
+        path: /home/ubuntu/.ssh
+        state: directory
+        mode: "0700"
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Install Git if missing
+      ansible.builtin.apt:
+        name: git
+        state: present
+        update_cache: yes
+
+    - name: Install private key for repo access
+      copy:
+        dest: /home/ubuntu/.ssh/id_rsa
+        content: "{{ lookup('env','REPO_SSH_KEY') }}"
+        owner: ubuntu
+        group: ubuntu
+        mode: "0600"
+
+    - name: Add GitHub.com to known_hosts for ubuntu
+      become: true
+      become_user: ubuntu
+      ansible.builtin.known_hosts:
+        path: /home/ubuntu/.ssh/known_hosts
+        name: github.com
+        state: present
+        key: "{{ lookup('pipe', 'ssh-keyscan -t rsa github.com') }}"
+
+    - name: Clone or update private shu-agent repo via SSH
+      ansible.builtin.git:
+        repo: "git@github.com:m-wajji/the_intelligent_assistant_of_shu-deployed.git"
+        dest: /opt/shu-agent
+        version: main
+        key_file: /home/ubuntu/.ssh/id_rsa
+        accept_hostkey: true
+      become: true
+      # become_user: ubuntu
+
+    - name: Wait for cloud-init to finish
+      wait_for:
+        path: /var/lib/cloud/instance/boot-finished
+        state: present
+        timeout: 120
+
+    - name: Update apt cache (with retries)
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+        update_cache_retries: 5
+        update_cache_retry_max_delay: 10
+
+    - name: Install Docker prerequisites
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - software-properties-common
+        update_cache: yes
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker apt repo
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu focal stable
+
+    - name: Install Docker Engine
+      ansible.builtin.apt:
+        name: docker-ce
+        update_cache: yes
+
+    - name: Ensure Docker is running
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Initialize Docker Swarm
+      shell: docker swarm init || true
+
+    - name: Extend filesystem to use full EBS volume
+      block:
+        - name: Check current partition table
+          ansible.builtin.shell: lsblk
+          register: partition_info
+
+        - name: Display current partitions
+          ansible.builtin.debug:
+            msg: "Current partitions: {{ partition_info.stdout_lines }}"
+
+        - name: Extend partition to use full disk (for Ubuntu/Debian)
+          ansible.builtin.shell: |
+            # Grow the partition
+            growpart /dev/nvme0n1 1 || growpart /dev/xvda 1 || true
+          ignore_errors: yes
+          become: yes
+
+        - name: Resize filesystem to use extended partition
+          ansible.builtin.shell: |
+            # Resize the filesystem
+            resize2fs /dev/nvme0n1p1 || resize2fs /dev/xvda1 || resize2fs /dev/root || true
+          ignore_errors: yes
+          become: yes
+
+        - name: Wait a moment for filesystem changes
+          ansible.builtin.pause:
+            seconds: 3
+
+        - name: Verify extended disk space
+          ansible.builtin.shell: df -h /
+          register: extended_disk_space
+
+        - name: Display extended disk space
+          ansible.builtin.debug:
+            msg: "Extended root filesystem: {{ extended_disk_space.stdout_lines }}"
+
+        - name: Fail if disk space is still insufficient
+          ansible.builtin.fail:
+            msg: "Filesystem extension failed. Still showing {{ extended_disk_space.stdout_lines }}"
+          when: "'20G' not in extended_disk_space.stdout and '19G' not in extended_disk_space.stdout and '18G' not in extended_disk_space.stdout"
+
+    - name: Verify available disk space
+      ansible.builtin.shell: df -h /
+      register: disk_space
+
+    - name: Display disk space
+      ansible.builtin.debug:
+        msg: "Root filesystem: {{ disk_space.stdout_lines }}"
+
+    - name: Log in to GitHub Container Registry
+      community.docker.docker_login:
+        registry_url: ghcr.io
+        username: "{{ ghcr_user }}"
+        password: "{{ ghcr_token }}"
+
+    - name: Pull latest backend image from GHCR
+      community.docker.docker_image:
+        name: ghcr.io/{{ ghcr_user }}/{{ lookup('env','GHCR_REPO') }}/shu-agent-backend
+        tag: latest
+        source: pull
+
+    - name: Pull latest frontend image from GHCR
+      community.docker.docker_image:
+        name: ghcr.io/{{ ghcr_user }}/{{ lookup('env','GHCR_REPO') }}/shu-agent-frontend
+        tag: latest
+        source: pull
+
+    # Create environment file for docker stack
+    - name: Create environment file for stack deployment
+      copy:
+        dest: /opt/shu-agent/.env
+        content: |
+          OPENAI_API_KEY={{ lookup('env','OPENAI_API_KEY') }}
+          GOOGLE_SERVICE_ACCOUNT_B64={{ lookup('env','GOOGLE_SERVICE_ACCOUNT_B64') }}
+        mode: "0600"
+
+    - name: Deploy Docker Swarm stack with environment
+      shell: |
+        cd /opt/shu-agent
+        export OPENAI_API_KEY="{{ lookup('env','OPENAI_API_KEY') }}"
+        export GOOGLE_SERVICE_ACCOUNT_B64="{{ lookup('env','GOOGLE_SERVICE_ACCOUNT_B64') }}"
+        docker stack deploy -c docker-stack.yml shu-agent
