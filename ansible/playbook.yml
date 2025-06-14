@@ -25,7 +25,8 @@
     - name: Install private key for repo access
       copy:
         dest: /home/ubuntu/.ssh/id_rsa
-        content: "{{ lookup('env','REPO_SSH_KEY') }}"
+        content: |
+          {{ lookup('env','REPO_SSH_KEY') }}
         owner: ubuntu
         group: ubuntu
         mode: "0600"
@@ -38,7 +39,6 @@
         name: github.com
         state: present
         key: "{{ lookup('pipe', 'ssh-keyscan -t rsa github.com') }}"
-
 
     - name: Clone or update private shu-agent repo via SSH
       ansible.builtin.git:
