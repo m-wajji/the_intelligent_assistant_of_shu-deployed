@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 locals {
-  key_path = "${path.module}/shu-agent-key.pub"
+  key_path = "${path.module}/shu_agent_key.pub"
 }
 
 resource "aws_key_pair" "deploy" {

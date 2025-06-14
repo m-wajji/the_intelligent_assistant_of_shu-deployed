@@ -6,4 +6,4 @@ venv
 __pycache__
 .next
 /backend/app/shu_partitioned_db/chroma_dbs/
-shu-agent-key
+shu_agent_key

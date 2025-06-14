@@ -30,35 +30,6 @@
         group: ubuntu
         mode: "0600"
 
-    # Add these debug tasks after the key installation
-    - name: Debug - Check if key file exists
-      stat:
-        path: /home/ubuntu/.ssh/id_rsa
-      register: key_file_stat
-
-    - name: Debug - Show key file info
-      debug:
-        msg: "Key file exists: {{ key_file_stat.stat.exists }}, Size: {{ key_file_stat.stat.size | default('N/A') }}"
-
-    - name: Debug - Check key format (first few lines)
-      shell: head -3 /home/ubuntu/.ssh/id_rsa
-      register: key_header
-      become_user: ubuntu
-
-    - name: Debug - Show key header
-      debug:
-        msg: "Key header: {{ key_header.stdout_lines }}"
-
-    - name: Debug - Validate key format
-      shell: ssh-keygen -y -f /home/ubuntu/.ssh/id_rsa
-      register: public_key_test
-      become_user: ubuntu
-      ignore_errors: yes
-
-    - name: Debug - Show key validation result
-      debug:
-        msg: "Key validation: {{ 'SUCCESS' if public_key_test.rc == 0 else 'FAILED - ' + public_key_test.stderr }}"
-
     - name: Add GitHub.com to known_hosts for ubuntu
       become: true
       become_user: ubuntu
@@ -68,15 +39,6 @@
         state: present
         key: "{{ lookup('pipe', 'ssh-keyscan -t rsa github.com') }}"
 
-    - name: Debug - Test SSH connection to GitHub
-      shell: ssh -T git@github.com
-      register: github_ssh_test
-      become_user: ubuntu
-      ignore_errors: yes
-
-    - name: Debug - Show GitHub SSH test result
-      debug:
-        msg: "GitHub SSH test: {{ github_ssh_test.stderr }}"
 
     - name: Clone or update private shu-agent repo via SSH
       ansible.builtin.git:
