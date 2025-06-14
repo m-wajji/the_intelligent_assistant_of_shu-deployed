@@ -7,3 +7,5 @@ __pycache__
 .next
 /backend/app/shu_partitioned_db/chroma_dbs/
 shu_agent_key
+deploy_key
+deploy_key.pub
