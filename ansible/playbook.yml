@@ -22,8 +22,7 @@
     - name: Install private key for repo access
       copy:
         dest: "{{ item.dest }}"
-        content: |
-          "{{ lookup('env','REPO_SSH_KEY') }}"
+        content: "{{ lookup('env','REPO_SSH_KEY') }}\n"
         owner: "{{ item.owner }}"
         group: "{{ item.group }}"
         mode: "0600"
@@ -41,12 +40,36 @@
         - /home/ubuntu/.ssh/known_hosts
         - /root/.ssh/known_hosts
 
+    - name: Debug SSH key content
+      debug:
+        msg: "SSH key starts with: {{ lookup('env','REPO_SSH_KEY')[:50] }}"
+
+    - name: Check SSH key file format
+      shell: |
+        head -1 /root/.ssh/id_rsa
+        echo "---"
+        tail -1 /root/.ssh/id_rsa
+      register: key_check
+
+    - name: Display key check
+      debug:
+        var: key_check.stdout_lines
+
+    - name: Test SSH key
+      shell: ssh -T -i /root/.ssh/id_rsa git@github.com
+      register: ssh_test
+      ignore_errors: yes
+
+    - name: Display SSH test result
+      debug:
+        var: ssh_test
+
     - name: Clone or update private shu-agent repo via SSH
       ansible.builtin.git:
         repo: "git@github.com:m-wajji/the_intelligent_assistant_of_shu-deployed.git"
         dest: /opt/shu-agent
         version: main
-        key_file: /home/ubuntu/.ssh/id_rsa
+        key_file: /root/.ssh/id_rsa
         accept_hostkey: true
       become: true
       # become_user: ubuntu
