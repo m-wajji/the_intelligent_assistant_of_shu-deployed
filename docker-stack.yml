@@ -2,7 +2,7 @@ services:
   backend:
     image: ghcr.io/m-wajji/the_intelligent_assistant_of_shu-deployed/shu-agent-backend:latest
     environment:
-      - FRONTEND_URL=${FRONTEND_URL:-http://54.175.109.150}
+      - FRONTEND_URL=${FRONTEND_URL}
     ports:
       - "8000:8000"
     volumes:
@@ -18,7 +18,7 @@ services:
     image: ghcr.io/m-wajji/the_intelligent_assistant_of_shu-deployed/shu-agent-frontend:latest
     environment:
       # - BACKEND_URL=http://backend:8000
-      - NEXT_PUBLIC_API_URL=http://54.175.109.150:8000
+      - NEXT_PUBLIC_API_URL=http://${PUBLIC_IP}:8000
     ports:
       - "80:3000"
     depends_on:
