@@ -22,7 +22,8 @@
     - name: Install private key for repo access
       copy:
         dest: "{{ item.dest }}"
-        content: "{{ lookup('env','REPO_SSH_KEY') }}"
+        content: |
+          "{{ lookup('env','REPO_SSH_KEY') }}"
         owner: "{{ item.owner }}"
         group: "{{ item.group }}"
         mode: "0600"
