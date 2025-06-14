@@ -40,38 +40,6 @@
         - /home/ubuntu/.ssh/known_hosts
         - /root/.ssh/known_hosts
 
-    - name: Check Docker Swarm services
-      shell: docker service ls
-      register: docker_services
-
-    - name: Display Docker services
-      debug:
-        var: docker_services.stdout_lines
-
-    - name: Check Docker stack status
-      shell: docker stack ps shu-agent
-      register: stack_status
-
-    - name: Display stack status
-      debug:
-        var: stack_status.stdout_lines
-
-    - name: Check which ports are listening
-      shell: netstat -tlnp | grep -E ':80|:443|:8080'
-      register: listening_ports
-
-    - name: Display listening ports
-      debug:
-        var: listening_ports.stdout_lines
-
-    - name: Check if containers are running
-      shell: docker ps
-      register: running_containers
-
-    - name: Display running containers
-      debug:
-        var: running_containers.stdout_lines
-
     - name: Clone or update private shu-agent repo via SSH
       ansible.builtin.git:
         repo: "git@github.com:m-wajji/the_intelligent_assistant_of_shu-deployed.git"
@@ -128,6 +96,38 @@
 
     - name: Initialize Docker Swarm
       shell: docker swarm init || true
+
+    - name: Check Docker Swarm services
+      shell: docker service ls
+      register: docker_services
+
+    - name: Display Docker services
+      debug:
+        var: docker_services.stdout_lines
+
+    - name: Check Docker stack status
+      shell: docker stack ps shu-agent
+      register: stack_status
+
+    - name: Display stack status
+      debug:
+        var: stack_status.stdout_lines
+
+    - name: Check which ports are listening
+      shell: netstat -tlnp | grep -E ':80|:443|:8080'
+      register: listening_ports
+
+    - name: Display listening ports
+      debug:
+        var: listening_ports.stdout_lines
+
+    - name: Check if containers are running
+      shell: docker ps
+      register: running_containers
+
+    - name: Display running containers
+      debug:
+        var: running_containers.stdout_lines
 
     - name: Extend filesystem to use full EBS volume
       block:

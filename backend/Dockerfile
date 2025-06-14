@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
-RUN mkdir -p shu_partitioned_db/chroma_dbs
+RUN mkdir -p app/shu_partitioned_db/chroma_dbs
 
 EXPOSE 8000
 
