@@ -8,37 +8,37 @@
     ghcr_token: "{{ lookup('env','GHCR_TOKEN') }}"
 
   tasks:
-    - name: Ensure .ssh directory for ubuntu
+    - name: Ensure .ssh directories exist
       file:
-        path: /home/ubuntu/.ssh
+        path: "{{ item.path }}"
         state: directory
         mode: "0700"
-        owner: ubuntu
-        group: ubuntu
-
-    - name: Install Git if missing
-      ansible.builtin.apt:
-        name: git
-        state: present
-        update_cache: yes
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+      loop:
+        - { path: /home/ubuntu/.ssh, owner: ubuntu, group: ubuntu }
+        - { path: /root/.ssh, owner: root, group: root }
 
     - name: Install private key for repo access
       copy:
-        dest: /home/ubuntu/.ssh/id_rsa
-        content: |
-          {{ lookup('env','REPO_SSH_KEY') }}
-        owner: ubuntu
-        group: ubuntu
+        dest: "{{ item.dest }}"
+        content: "{{ lookup('env','REPO_SSH_KEY') }}"
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
         mode: "0600"
+      loop:
+        - { dest: /home/ubuntu/.ssh/id_rsa, owner: ubuntu, group: ubuntu }
+        - { dest: /root/.ssh/id_rsa, owner: root, group: root }
 
-    - name: Add GitHub.com to known_hosts for ubuntu
-      become: true
-      become_user: ubuntu
+    - name: Add GitHub.com to known_hosts
       ansible.builtin.known_hosts:
-        path: /home/ubuntu/.ssh/known_hosts
+        path: "{{ item }}"
         name: github.com
         state: present
         key: "{{ lookup('pipe', 'ssh-keyscan -t rsa github.com') }}"
+      loop:
+        - /home/ubuntu/.ssh/known_hosts
+        - /root/.ssh/known_hosts
 
     - name: Clone or update private shu-agent repo via SSH
       ansible.builtin.git:
