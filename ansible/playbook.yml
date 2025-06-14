@@ -186,41 +186,50 @@
         export GOOGLE_SERVICE_ACCOUNT_B64="{{ lookup('env','GOOGLE_SERVICE_ACCOUNT_B64') }}"
         docker stack deploy -c docker-stack.yml shu-agent
 
-    # Debugging tasks - NOW AFTER DOCKER IS INSTALLED
+    # Debugging tasks - disable privilege escalation for these
     - name: Wait for services to start
       pause:
         seconds: 30
+      become: false
 
     - name: Check Docker Swarm services
       shell: docker service ls
       register: docker_services
+      become: false
 
     - name: Display Docker services
       debug:
         var: docker_services.stdout_lines
+      become: false
 
     - name: Check Docker stack status (with error handling)
       shell: docker stack ps shu-agent
       register: stack_status
       ignore_errors: yes
+      become: false
 
     - name: Display stack status
       debug:
         var: stack_status
+      become: false
 
     - name: Check which ports are listening
       shell: netstat -tlnp | grep -E ':80|:443|:8080'
       register: listening_ports
       ignore_errors: yes
+      become: false
 
     - name: Display listening ports
       debug:
         var: listening_ports.stdout_lines
+      become: false
 
     - name: Check if containers are running
       shell: docker ps
       register: running_containers
+      become: false
 
     - name: Display running containers
       debug:
         var: running_containers.stdout_lines
+      become: false
