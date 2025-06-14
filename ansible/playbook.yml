@@ -40,29 +40,37 @@
         - /home/ubuntu/.ssh/known_hosts
         - /root/.ssh/known_hosts
 
-    - name: Debug SSH key content
+    - name: Check Docker Swarm services
+      shell: docker service ls
+      register: docker_services
+
+    - name: Display Docker services
       debug:
-        msg: "SSH key starts with: {{ lookup('env','REPO_SSH_KEY')[:50] }}"
+        var: docker_services.stdout_lines
 
-    - name: Check SSH key file format
-      shell: |
-        head -1 /root/.ssh/id_rsa
-        echo "---"
-        tail -1 /root/.ssh/id_rsa
-      register: key_check
+    - name: Check Docker stack status
+      shell: docker stack ps shu-agent
+      register: stack_status
 
-    - name: Display key check
+    - name: Display stack status
       debug:
-        var: key_check.stdout_lines
+        var: stack_status.stdout_lines
 
-    - name: Test SSH key
-      shell: ssh -T -i /root/.ssh/id_rsa git@github.com
-      register: ssh_test
-      ignore_errors: yes
+    - name: Check which ports are listening
+      shell: netstat -tlnp | grep -E ':80|:443|:8080'
+      register: listening_ports
 
-    - name: Display SSH test result
+    - name: Display listening ports
       debug:
-        var: ssh_test
+        var: listening_ports.stdout_lines
+
+    - name: Check if containers are running
+      shell: docker ps
+      register: running_containers
+
+    - name: Display running containers
+      debug:
+        var: running_containers.stdout_lines
 
     - name: Clone or update private shu-agent repo via SSH
       ansible.builtin.git:
